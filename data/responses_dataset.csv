@@ -1,0 +1,5 @@
+intent,patterns,response
+saludo,"hola;hola bot;buenos dias;buenas","¡Hola! Soy MindCareBot. ¿Cómo te sentís hoy?"
+estres,"estoy estresado;tengo estrés;no puedo con todo","Siento que estés así. Respirá hondo 3 veces. ¿Querés contarme qué te preocupa?"
+ansiedad,"me pongo muy ansioso;ansiedad;me da panico","Lamento que te sientas así. Podríamos intentar un ejercicio de respiración guiada. ¿Querés?"
+agradecimiento,"gracias;muchas gracias;gracias bot","De nada — me alegra poder ayudar."
