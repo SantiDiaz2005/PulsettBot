@@ -1,21 +1,20 @@
-python-telegram-bot>=20.0 pandas scikit-learn textblob nltk SpeechRecognition pydub opencv-python numpy torch transformers deepface git+https://github.com/openai/whisper.git
-``` :contentReference[oaicite:11]{index=11}  
+# Librerías principales del bot
+python-telegram-bot==20.3
 
-Para `pip` lo correcto es **una librería por línea**.  
-
-👉 **Propuesta de corrección:**
-
-```text
-python-telegram-bot>=20.0
+# Procesamiento de datos y machine learning
 pandas
 scikit-learn
 textblob
 nltk
+numpy
+
+# Audio y voz
 SpeechRecognition
 pydub
-opencv-python
-numpy
 torch
 transformers
-deepface
 git+https://github.com/openai/whisper.git
+
+# Análisis de imágenes y rostro
+opencv-python
+deepface
