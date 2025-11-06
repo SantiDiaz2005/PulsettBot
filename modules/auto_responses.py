@@ -1,5 +1,6 @@
 # modules/auto_responses.py
 import pandas as pd
+import random
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 import os
@@ -16,15 +17,17 @@ class AutoResponder:
 
     def _load_and_train(self):
         self.df = pd.read_csv(self.csv_path)
-        # Expand patterns (they can be separated by ';')
-        X = []
-        y = []
+        X, y = [], []
+
+        # Permitir varias frases y varias respuestas por intención
         for _, row in self.df.iterrows():
             patterns = str(row["patterns"]).split(";")
+            responses = str(row["response"]).split("|")  # separador de posibles respuestas
+            self.intents[row["intent"]] = responses
             for p in patterns:
                 X.append(p.strip().lower())
                 y.append(row["intent"])
-            self.intents[row["intent"]] = row["response"]
+
         X_vec = self.vectorizer.fit_transform(X)
         self.model.fit(X_vec, y)
 
@@ -33,12 +36,8 @@ class AutoResponder:
             return ""
         x = self.vectorizer.transform([text.lower()])
         intent = self.model.predict(x)[0]
-        return self.intents.get(intent, "")
-
-# helper factory
-_autoresponder = None
-def get_autoresponder(csv_path="data/responses_dataset.csv"):
-    global _autoresponder
-    if _autoresponder is None:
-        _autoresponder = AutoResponder(csv_path)
-    return _autoresponder
+        responses = self.intents.get(intent, [])
+        if responses:
+            return random.choice(responses).strip()  # elige una aleatoria
+        else:
+            return ""

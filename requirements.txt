@@ -1,3 +1,11 @@
+python-telegram-bot>=20.0 pandas scikit-learn textblob nltk SpeechRecognition pydub opencv-python numpy torch transformers deepface git+https://github.com/openai/whisper.git
+``` :contentReference[oaicite:11]{index=11}  
+
+Para `pip` lo correcto es **una librería por línea**.  
+
+👉 **Propuesta de corrección:**
+
+```text
 python-telegram-bot>=20.0
 pandas
 scikit-learn
