@@ -17,7 +17,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # setear en el entorno o .env
 autoresponder = get_autoresponder("data/responses_dataset.csv")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hola! Soy MindCareBot 🤖. Envíame un mensaje, voz o foto y te acompaño.")
+    await update.message.reply_text("Hola! Soy Pulsett Bot 🤖. Envíame un mensaje, voz o foto y te acompaño.")
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Comandos:\n/start - iniciar\n/help - ayuda\nPodés enviar texto, mensajes de voz o fotos.")
@@ -32,7 +32,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if auto:
         reply += f"\n{auto}"
     else:
-        reply += "\nNo encontré una respuesta automática para esa frase. ¿Querés contarme más?"
+        reply += (
+            "\nNo tengo una respuesta exacta para eso todavía, "
+            "pero estoy acá para leerte. ¿Querés contarme un poco más?" 
+            )
     await update.message.reply_text(reply)
 
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,7 +58,11 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if auto:
             reply += f"\n{auto}"
     else:
-        reply = "No pude transcribir tu audio. Probá con un audio más claro o verificá ffmpeg/Whisper."
+        reply = (
+            "No pude entender bien tu audio 😕. "
+            "¿Podés intentar hablar un poco más cerca del micrófono "
+            "o mandarme lo que sentís por texto?"
+        )
     await update.message.reply_text(reply)
 
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
