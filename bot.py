@@ -8,6 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 from modules.sentiment_analysis import analyze_sentiment
 from modules.auto_responses import AutoResponder
+from modules.auto_responses import get_autoresponder
 from modules.speech_to_text import transcribe_audio
 from modules.image_analysis import analyze_image
 
@@ -19,8 +20,7 @@ logger = logging.getLogger(__name__)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Cargar el dataset de respuestas automáticas
-auto_responder = AutoResponder("data/responses_dataset.csv")
-
+auto_responder = get_autoresponder("data/responses_dataset.csv")
 # -------------- MENSAJES BASE --------------
 WELCOME_MESSAGES = [
     "👋 ¡Hola! Soy Pulsett Bot 🤖. Estoy acá para acompañarte, ¿cómo te sentís hoy?",
