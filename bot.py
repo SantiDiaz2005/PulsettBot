@@ -7,7 +7,6 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 from modules.sentiment_analysis import analyze_sentiment
-from modules.auto_responses import AutoResponder
 from modules.auto_responses import get_autoresponder
 from modules.speech_to_text import transcribe_audio
 from modules.image_analysis import analyze_image
@@ -21,6 +20,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 # Cargar el dataset de respuestas automáticas
 auto_responder = get_autoresponder("data/responses_dataset.csv")
+
 # -------------- MENSAJES BASE --------------
 WELCOME_MESSAGES = [
     "👋 ¡Hola! Soy Pulsett Bot 🤖. Estoy acá para acompañarte, ¿cómo te sentís hoy?",
@@ -49,7 +49,6 @@ NEGATIVE_BASE = [
 
 # -------------- COMANDOS ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Mensaje inicial con bienvenida aleatoria"""
     message = random.choice(WELCOME_MESSAGES)
     await update.message.reply_text(message)
     context.user_data["active"] = True
@@ -63,163 +62,123 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# -------------- MANEJADOR DE TEXTO CON MEMORIA EMOCIONAL (mejorado) --------------
+# -------------- MANEJADOR TEXTO --------------
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text_raw = update.message.text
     text = text_raw.lower().strip()
 
-    # --- Detección de saludos ---
     SALUDOS = ["hola", "buenas", "hey", "holaa", "buen día", "buenas tardes", "buenas noches"]
-    if any(saludo == text or text.startswith(saludo + " ") for saludo in SALUDOS):
+    if any(text.startswith(s) for s in SALUDOS):
         await update.message.reply_text(
             "👋 ¡Hola! Soy Pulsett Bot 🤖, tu compañero emocional. ¿Cómo te sentís hoy?"
         )
         context.user_data["last_emotion"] = "neutral"
         return
 
-    # --- Análisis emocional del texto ---
     sent = analyze_sentiment(text_raw)
     tone = sent["label"].lower()
     last_tone = context.user_data.get("last_emotion", None)
 
     reply = f"🔍 *Análisis de sentimiento:* {sent['label'].capitalize()}.\n\n"
 
-    # --- Respuesta según tono ---
     if tone == "negativo":
-        if any(pal in text for pal in ["solo", "sola", "soledad"]):
-            reply += (
-                "💙 Sentirse solo puede ser muy duro. Gracias por animarte a decirlo. "
-                "No estás solo acá, podemos charlar todo lo que necesites."
-            )
+        if any(p in text for p in ["solo", "sola", "soledad"]):
+            reply += "💙 Sentirse solo puede ser muy duro. Gracias por contarlo. Estoy acá para vos."
         elif last_tone == "positivo":
-            reply += (
-                "😔 Noto un cambio en tu ánimo. Está bien, todos tenemos altibajos. "
-                "Si querés hablar de eso, te escucho 💬."
-            )
+            reply += "😔 Veo un cambio en tu ánimo. Está bien tener altibajos. ¿Querés hablar sobre eso?"
         else:
             reply += random.choice(NEGATIVE_BASE)
 
     elif tone == "positivo":
         if last_tone == "negativo":
-            reply += (
-                "💪 Me alegra mucho ver que te sentís mejor. Es un paso importante hacia adelante, "
-                "bien por vos 🙌."
-            )
+            reply += "💪 Qué bueno ver que estás mejor. Me alegra mucho por vos 🙌."
         else:
             reply += random.choice(POSITIVE_BASE)
 
-    else:  # tono neutral
-        auto_reply = auto_responder.predict_response(text_raw)
+    else:
+        auto_reply = auto_responder.predict_response(text_raw) if auto_responder else None
         if auto_reply:
-            reply += f"{auto_reply}"
+            reply += auto_reply
         else:
             reply += random.choice(NEUTRAL_BASE)
 
-    # Guardar el estado emocional actual
     context.user_data["last_emotion"] = tone
-
     await update.message.reply_text(reply, parse_mode="Markdown")
 
-# ---------------- MANEJADOR DE AUDIO ----------------
+# -------------- MANEJADOR AUDIO --------------
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Procesa mensajes de voz, analiza el sentimiento y responde emocionalmente."""
     file = await update.message.voice.get_file()
-    local_ogg = f"temp_{update.message.message_id}.ogg"
+    local_ogg = f"temp_{update.message.message_id}.oga"
     await file.download_to_drive(custom_path=local_ogg)
 
     await update.message.reply_text("🎧 Estoy escuchando tu mensaje... un momento por favor ⏳")
 
-    try:
-        text = transcribe_audio(local_ogg)
-    except Exception as e:
-        text = ""
-        print("❌ Error al transcribir el audio:", e)
-    finally:
-        if os.path.exists(local_ogg):
-            os.remove(local_ogg)
+    import os
+    if not os.path.exists(local_ogg):
+        await update.message.reply_text("❌ Error al descargar tu audio.")
+        return
 
-    if text:
-        sent = analyze_sentiment(text)
-        tone = sent["label"].lower()
-        auto_reply = auto_responder.predict_response(text)
+    text = transcribe_audio(local_ogg)
 
-        reply = f"🔊 *Análisis de tu mensaje de voz:*\n"
+    os.remove(local_ogg)
 
-        if tone == "positivo":
-            reply += random.choice([
-                "😄 Me alegra escucharte con esa energía positiva. ¡Seguí así!",
-                "🌟 Qué bueno escucharte tan bien. Aprovechá este momento para recargar pilas 💪",
-                "😁 Transmitís muy buena vibra, me encanta saber que estás así de bien."
-            ])
-        elif tone == "negativo":
-            reply += random.choice([
-                "💙 Lamento que estés pasando por un momento difícil. Estoy acá para acompañarte 💬",
-                "🤍 Gracias por compartirlo. No estás solo, podemos hablar de eso si querés 🫂",
-                "😔 Entiendo cómo te sentís. A veces hablarlo ayuda, contame si querés que te escuche."
-            ])
-        else:
-            reply += random.choice([
-                "🙂 Gracias por compartir tu mensaje conmigo.",
-                "😌 Te escucho con atención. Contame un poco más si querés.",
-                "🧠 Gracias por confiar en mí, a veces hablar ya es un gran paso."
-            ])
+    if not text or not text.strip():
+        await update.message.reply_text("😕 No logré entender tu audio. ¿Podés repetirlo o escribir cómo te sentís?")
+        return
 
-        if auto_reply:
-            reply += f"\n\n{auto_reply}"
+    sent = analyze_sentiment(text)
+    tone = sent["label"].lower()
 
-        await update.message.reply_text(reply, parse_mode="Markdown")
+    reply = "🧠 **Análisis de tu mensaje de voz:**\n\n"
 
+    if tone == "positivo":
+        reply += random.choice(POSITIVE_BASE)
+    elif tone == "negativo":
+        reply += random.choice(NEGATIVE_BASE)
     else:
-        await update.message.reply_text(
-            "😕 No pude entender bien tu audio. ¿Podés intentar hablar un poco más cerca del micrófono o escribirme cómo te sentís por texto?"
-        )
+        reply += random.choice(NEUTRAL_BASE)
 
+    auto_reply = auto_responder.predict_response(text) if auto_responder else None
+    if auto_reply:
+        reply += f"\n\n🗣 {auto_reply}"
 
-# -------------- MANEJADOR DE IMÁGENES --------------
+    await update.message.reply_text(reply, parse_mode="Markdown")
+
+# -------------- MANEJADOR IMÁGENES --------------
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file = await update.message.photo[-1].get_file()
     local_jpg = f"temp_photo_{update.message.message_id}.jpg"
     await file.download_to_drive(custom_path=local_jpg)
-    await update.message.reply_text("🧐 Analizando la imagen... un momento por favor 🕓")
 
-    try:
-        res = analyze_image(local_jpg)
-    except Exception:
-        res = None
-    finally:
-        if os.path.exists(local_jpg):
-            os.remove(local_jpg)
+    await update.message.reply_text("🖼️ Analizando la imagen... un momento por favor ⚪")
 
-    if res:
-        scene = res.get("scene_label", "Desconocido")
-        faces = res.get("faces", 0)
-        brightness = res.get("brightness", "N/A")
+    res = analyze_image(local_jpg)
 
-        reply = f"🖼️ *Análisis de imagen:*\nEscenario detectado: *{scene}*\nCaras detectadas: *{faces}*\nBrillo promedio: *{brightness}*\n\n"
+    os.remove(local_jpg)
 
-        if faces > 0 and "happy" in scene.lower():
-            reply += "😊 Parece una imagen alegre y con buena energía. ¡Me encanta ver momentos felices como este!"
-        elif "dark" in scene.lower() or brightness == "bajo":
-            reply += "🌙 La imagen tiene tonos oscuros, quizás transmite calma o introspección. ¿Te gustaría contarme qué te inspiró a tomarla?"
-        elif faces == 0 and "outdoor" in scene.lower():
-            reply += "🌄 Qué linda vista. Las fotos de exteriores siempre traen un aire de libertad y conexión con uno mismo."
-        else:
-            reply += "📷 Interesante captura. Cada imagen tiene una historia detrás, y esta parece tener mucho para decir."
+    emotion = res.get("emotion", "unknown").lower()
 
-    else:
-        reply = (
-            "😕 No pude analizar la imagen correctamente. "
-            "Podés intentar enviarla nuevamente o contarme qué representa para vos 📸."
-        )
+    reply_map = {
+        "happy": "🙂 Hay una emoción positiva en la imagen.",
+        "sad": "💙 Veo tristeza en la imagen. ¿Querés contarme qué pasó?",
+        "angry": "😠 La imagen muestra enojo.",
+        "surprise": "😮 Parece que algo inesperado sucedió.",
+        "fear": "😰 Noto miedo o ansiedad.",
+        "disgust": "🤢 Detecto signos de disgusto.",
+        "neutral": "😐 La expresión es neutra."
+    }
+
+    reply = f"🖼️ *Análisis de imagen:*\nEmoción detectada: **{emotion.capitalize()}**\n\n"
+    reply += reply_map.get(emotion, "🙂 No estoy seguro de la emoción en la imagen.")
 
     await update.message.reply_text(reply, parse_mode="Markdown")
 
-# -------------- MENSAJE DE CIERRE AUTOMÁTICO --------------
+# -------------- INACTIVIDAD --------------
 async def inactivity_timer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.sleep(120)
     if context.user_data.get("active", False):
         await update.message.reply_text(
-            "💙 Gracias por charlar conmigo. Recordá que tus emociones importan. Estoy acá cuando necesites hablar 🫂"
+            "💙 Gracias por charlar conmigo. Estoy acá cuando necesites hablar 🫂"
         )
         context.user_data["active"] = False
 

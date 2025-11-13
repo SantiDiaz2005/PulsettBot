@@ -1,34 +1,27 @@
-# modules/image_analysis.py
-import cv2
-import numpy as np
-import os
+from transformers import AutoImageProcessor, AutoModelForImageClassification
+from PIL import Image
+import torch
 
-# Intent: detectar brillo general y si hay cara (Haar cascade)
-_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+# Modelo de emociones disponible públicamente
+MODEL_NAME = "dima806/facial_emotions_image_detection"
 
-def analyze_image(image_path: str) -> dict:
-    """
-    Devuelve: dict con 'faces' (n), 'brightness' (0..255), 'scene_label' (str simple)
-    """
-    img = cv2.imread(image_path)
-    if img is None:
-        return {"faces": 0, "brightness": 0.0, "scene_label": "unknown"}
+processor = AutoImageProcessor.from_pretrained(MODEL_NAME)
+model = AutoModelForImageClassification.from_pretrained(MODEL_NAME)
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = _cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30,30))
-    faces_count = len(faces)
+def analyze_image(image_path):
+    image = Image.open(image_path).convert("RGB")
 
-    # brillo promedio
-    brightness = float(np.mean(gray))
+    # Preprocesar imagen
+    inputs = processor(images=image, return_tensors="pt")
 
-    # heurística simple:
-    if faces_count > 0 and brightness > 90:
-        scene = "probable_happy_or_social"
-    elif faces_count > 0 and brightness <= 90:
-        scene = "faces_but_dim_light"
-    elif brightness < 70:
-        scene = "dark_or_sad"
-    else:
-        scene = "neutral_or_outdoor"
+    with torch.no_grad():
+        outputs = model(**inputs)
+        logits = outputs.logits
+        predicted_class_id = logits.argmax(-1).item()
 
-    return {"faces": faces_count, "brightness": round(brightness,2), "scene_label": scene}
+    # Obtener emoción
+    emotion = model.config.id2label[predicted_class_id]
+
+    return {
+        "emotion": emotion
+    }
