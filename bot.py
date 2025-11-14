@@ -107,42 +107,73 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------- MANEJADOR AUDIO --------------
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file = await update.message.voice.get_file()
-    local_ogg = f"temp_{update.message.message_id}.oga"
-    await file.download_to_drive(custom_path=local_ogg)
+    try:
+        # Manejar tanto voice como audio
+        if update.message.voice:
+            file = await update.message.voice.get_file()
+            file_extension = ".oga"
+        elif update.message.audio:
+            file = await update.message.audio.get_file()
+            # Detectar extensión del archivo de audio
+            file_name = update.message.audio.file_name or "audio"
+            if file_name.endswith(('.mp3', '.m4a', '.wav')):
+                file_extension = os.path.splitext(file_name)[1]
+            else:
+                file_extension = ".oga"
+        else:
+            await update.message.reply_text("❌ No se pudo procesar el mensaje de audio.")
+            return
 
-    await update.message.reply_text("🎧 Estoy escuchando tu mensaje... un momento por favor ⏳")
+        local_audio = f"temp_{update.message.message_id}{file_extension}"
+        
+        try:
+            await file.download_to_drive(custom_path=local_audio)
+        except Exception as e:
+            logger.error(f"Error al descargar audio: {e}")
+            await update.message.reply_text("❌ Error al descargar tu audio. Por favor, intentá nuevamente.")
+            return
 
-    import os
-    if not os.path.exists(local_ogg):
-        await update.message.reply_text("❌ Error al descargar tu audio.")
-        return
+        if not os.path.exists(local_audio):
+            await update.message.reply_text("❌ Error al descargar tu audio.")
+            return
 
-    text = transcribe_audio(local_ogg)
+        await update.message.reply_text("🎧 Estoy escuchando tu mensaje... un momento por favor ⏳")
 
-    os.remove(local_ogg)
+        text = transcribe_audio(local_audio)
 
-    if not text or not text.strip():
-        await update.message.reply_text("😕 No logré entender tu audio. ¿Podés repetirlo o escribir cómo te sentís?")
-        return
+        # Limpiar archivo temporal
+        if os.path.exists(local_audio):
+            try:
+                os.remove(local_audio)
+            except Exception as e:
+                logger.warning(f"No se pudo eliminar archivo temporal: {e}")
 
-    sent = analyze_sentiment(text)
-    tone = sent["label"].lower()
+        if not text or not text.strip():
+            await update.message.reply_text("😕 No logré entender tu audio. ¿Podés repetirlo o escribir cómo te sentís?")
+            return
 
-    reply = "🧠 **Análisis de tu mensaje de voz:**\n\n"
+        sent = analyze_sentiment(text)
+        tone = sent["label"].lower()
 
-    if tone == "positivo":
-        reply += random.choice(POSITIVE_BASE)
-    elif tone == "negativo":
-        reply += random.choice(NEGATIVE_BASE)
-    else:
-        reply += random.choice(NEUTRAL_BASE)
+        reply = f"🧠 **Análisis de tu mensaje de voz:**\n\n"
+        reply += f"📝 *Transcripción:* {text}\n\n"
 
-    auto_reply = auto_responder.predict_response(text) if auto_responder else None
-    if auto_reply:
-        reply += f"\n\n🗣 {auto_reply}"
+        if tone == "positivo":
+            reply += random.choice(POSITIVE_BASE)
+        elif tone == "negativo":
+            reply += random.choice(NEGATIVE_BASE)
+        else:
+            reply += random.choice(NEUTRAL_BASE)
 
-    await update.message.reply_text(reply, parse_mode="Markdown")
+        auto_reply = auto_responder.predict_response(text) if auto_responder else None
+        if auto_reply and auto_reply != "ERROR_DATASET_VACIO":
+            reply += f"\n\n🗣 {auto_reply}"
+
+        await update.message.reply_text(reply, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"Error en voice_handler: {e}")
+        await update.message.reply_text("❌ Ocurrió un error al procesar tu audio. Por favor, intentá nuevamente.")
 
 # -------------- MANEJADOR IMÁGENES --------------
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -192,7 +223,8 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_cmd))
-    app.add_handler(MessageHandler(filters.VOICE, voice_handler))
+    # Capturar tanto mensajes de voz como archivos de audio
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, voice_handler))
     app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
